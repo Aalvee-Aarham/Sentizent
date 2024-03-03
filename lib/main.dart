@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
-// import 'package:universal_html/html.dart' as universal_html;
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:csv/csv.dart' as csv;
-import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 void main() {
@@ -242,36 +240,33 @@ class _CoordinateDetectorState extends State<CoordinateDetector> {
     final List<List<dynamic>> rows = processList(coordinateList);
 
     final csvData = const csv.ListToCsvConverter().convert(rows);
-    print(csvData);
-    final String now = DateFormat('dd/MM/yyyy_HH:mm:ss').format(DateTime.now());
+    final String now = DateFormat('dd_MM_yyyy_HH:mm:ss').format(DateTime.now());
     final String fileName = 'coordinates_$now.csv';
 
-    final List<int> bytes = utf8.encode(csvData);
-
     if (io.Platform.isIOS) {
-      // For iOS
       final io.Directory? directory = await getApplicationDocumentsDirectory();
+      print(directory?.path);
       if (directory != null) {
         final String path = '${directory.path}/$fileName';
-        final io.File file = io.File(path);
-        await file.writeAsBytes(bytes);
-        // Handle the file as required for iOS, like sharing or saving it locally.
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('File saved to iOS directory: $path'),
-        ));
+        try {
+          await directory.create(recursive: true);
+          final io.File file = io.File(path);
+          await file.writeAsString(csvData);
+
+          if (await file.exists()) {
+            String contents = await file.readAsString();
+            print('File contents: $contents');
+            await OpenFile.open(file.path);
+          } else {
+            print('File does not exist.');
+          }
+        } catch (e) {
+          print('Error creating or writing file: $e');
+        }
       } else {
         print('Error accessing iOS directory.');
       }
-    } else {
-      // For web
-      final blob = html.Blob([Uint8List.fromList(bytes)]);
-      final href = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: href)
-        ..setAttribute("download", fileName)
-        ..click();
-
-      html.Url.revokeObjectUrl(href);
-    }
+    } else {}
   }
 }
 
